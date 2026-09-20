@@ -1,0 +1,5 @@
+package-as: ForeverQuestTint
+
+ignore:
+  - screenshots
+  - .pkgmeta
