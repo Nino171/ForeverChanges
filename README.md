@@ -18,7 +18,8 @@ Vanilla quests keep the normal parchment. Everything new to Forever gets a teal 
 
 Type `/fqt`, or open **Options → AddOns → Forever Quest Tint**.
 
-- **Enable tint**: turn the addon's effect on or off.
+- **Tint the parchment teal**: on by default.
+- **Add the WoW Forever logo**: off by default. Puts the logo in the top-right corner of the bar above the quest text. Works with or without the tint.
 - **Tint colour**: the colour of the overlay.
 - **Bottom opacity**: strength of the teal at the bottom of the page.
 - **Top opacity**: strength where the fade ends. `0%` fades out completely.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+- New option to add the WoW Forever logo, in the top-right corner above the quest text (quest window and quest log), for quests that were not in original Classic. Off by default.
+- "Tint the parchment" and "Add logo" are independent: use either, both or neither.
+
+## 0.3.1
+- Works with every Quest Text Contrast setting (Default, Brown, White, Grey, Black).
+- On the Black setting the tint is drawn as a flat, deeper teal glow so it is actually visible.
+
 ## 0.3.0
 - Renamed to **Forever Quest Tint** (`/fqt`).
 - Settings panel: enable/disable, tint colour, bottom opacity, top opacity and fade length. Settings are saved between sessions.

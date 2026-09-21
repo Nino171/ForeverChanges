@@ -5,6 +5,8 @@ panel.name = "Forever Quest Tint"
 
 local syncing = false
 local widgets = {}
+local sliderScale = {}
+local Sync
 
 local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 title:SetPoint("TOPLEFT", 16, -16)
@@ -12,25 +14,30 @@ title:SetText("Forever Quest Tint")
 
 local sub = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
-sub:SetText("Tints the quest text background teal for quests that were not in original Classic.\nOpen a non-vanilla quest in the Map & Quest Log to preview changes.")
+sub:SetText("Marks quests that were not in original Classic: a teal tint on the quest text background, and/or the WoW Forever logo.\nOpen a non-vanilla quest in the Map & Quest Log to preview changes.")
 sub:SetJustifyH("LEFT")
 
--- Enabled checkbox
-local enabled = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
-enabled:SetPoint("TOPLEFT", sub, "BOTTOMLEFT", -4, -16)
-enabled.text = enabled:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-enabled.text:SetPoint("LEFT", enabled, "RIGHT", 2, 0)
-enabled.text:SetText("Enable tint")
-enabled:SetScript("OnClick", function(self)
-    if syncing then return end
-    ns.cfg.enabled = self:GetChecked() and true or false
-    ns.Reapply()
-end)
-widgets.enabled = enabled
+-- Independent on/off options
+local function MakeCheck(label, key, anchor, x, y)
+    local cb = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+    cb:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", x, y)
+    cb.text = cb:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    cb.text:SetPoint("LEFT", cb, "RIGHT", 2, 0)
+    cb.text:SetText(label)
+    cb:SetScript("OnClick", function(self)
+        if syncing then return end
+        ns.cfg[key] = self:GetChecked() and true or false
+        ns.Reapply()
+    end)
+    widgets[key] = cb
+    return cb
+end
+local showTint = MakeCheck("Tint the parchment teal", "showTint", sub, -4, -16)
+local showLogo = MakeCheck("Add the WoW Forever logo above the quest text", "showLogo", showTint, 0, -2)
 
 -- Colour swatch
 local colorLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-colorLabel:SetPoint("TOPLEFT", enabled, "BOTTOMLEFT", 4, -20)
+colorLabel:SetPoint("TOPLEFT", showLogo, "BOTTOMLEFT", 4, -20)
 colorLabel:SetText("Tint colour")
 
 local swatch = CreateFrame("Button", nil, panel)
@@ -77,7 +84,7 @@ end)
 
 -- Sliders (values shown and stored as percentages; config holds 0-1)
 local lastAnchor = colorLabel
-local function MakeSlider(label, key)
+local function MakeSlider(label, key, min, max, scale, suffix)
     local name = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     name:SetPoint("TOPLEFT", lastAnchor, "BOTTOMLEFT", 0, -28)
     name:SetText(label)
@@ -95,7 +102,8 @@ local function MakeSlider(label, key)
     track:SetHeight(4)
     s:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
     s:GetThumbTexture():SetSize(24, 24)
-    s:SetMinMaxValues(0, 100)
+    s:SetMinMaxValues(min, max)
+    sliderScale[key] = scale
     s:SetValueStep(1)
     s:SetObeyStepOnDrag(true)
 
@@ -103,31 +111,32 @@ local function MakeSlider(label, key)
     value:SetPoint("LEFT", s, "RIGHT", 12, 0)
 
     s:SetScript("OnValueChanged", function(self, v)
-        value:SetText(("%d%%"):format(v))
+        value:SetText(("%d%s"):format(v, suffix))
         if syncing then return end
-        ns.cfg[key] = v / 100
+        ns.cfg[key] = v / scale
         ns.Reapply()
     end)
     widgets[key] = s
     lastAnchor = s
 end
 
-MakeSlider("Bottom opacity", "alpha")
-MakeSlider("Top opacity", "topAlpha")
-MakeSlider("Fade length (share of the parchment, from the bottom)", "height")
+MakeSlider("Bottom opacity", "alpha", 0, 100, 100, "%")
+MakeSlider("Top opacity", "topAlpha", 0, 100, 100, "%")
+MakeSlider("Fade length (share of the parchment, from the bottom)", "height", 0, 100, 100, "%")
 
 local reset = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 reset:SetSize(140, 24)
 reset:SetPoint("TOPLEFT", lastAnchor, "BOTTOMLEFT", 0, -28)
 reset:SetText("Reset to defaults")
 
-local function Sync()
+function Sync()
     syncing = true
     local c = ns.cfg
-    widgets.enabled:SetChecked(c.enabled)
+    widgets.showTint:SetChecked(c.showTint)
+    widgets.showLogo:SetChecked(c.showLogo)
     swatch.fill:SetColorTexture(c.tint[1], c.tint[2], c.tint[3], 1)
     for _, key in ipairs({ "alpha", "topAlpha", "height" }) do
-        widgets[key]:SetValue(math.floor(c[key] * 100 + 0.5))
+        widgets[key]:SetValue(math.floor(c[key] * sliderScale[key] + 0.5))
     end
     syncing = false
 end

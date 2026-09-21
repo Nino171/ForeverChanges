@@ -2,4 +2,5 @@ package-as: ForeverQuestTint
 
 ignore:
   - screenshots
+  - logo
   - .pkgmeta
