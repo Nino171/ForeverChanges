@@ -84,11 +84,11 @@ end)
 
 -- Sliders (values shown and stored as percentages; config holds 0-1)
 local lastAnchor = colorLabel
-local function MakeSlider(label, key, min, max, scale, suffix)
+local function MakeSlider(label, key, min, max, scale, suffix, anchor)
     local name = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    name:SetPoint("TOPLEFT", lastAnchor, "BOTTOMLEFT", 0, -28)
+    name:SetPoint("TOPLEFT", anchor or lastAnchor, "BOTTOMLEFT", 0, -28)
     name:SetText(label)
-    lastAnchor = name
+    if not anchor then lastAnchor = name end
 
     local s = CreateFrame("Slider", nil, panel)
     s:SetOrientation("HORIZONTAL")
@@ -117,16 +117,153 @@ local function MakeSlider(label, key, min, max, scale, suffix)
         ns.Reapply()
     end)
     widgets[key] = s
-    lastAnchor = s
+    if not anchor then lastAnchor = s end
 end
 
 MakeSlider("Bottom opacity", "alpha", 0, 100, 100, "%")
 MakeSlider("Top opacity", "topAlpha", 0, 100, 100, "%")
 MakeSlider("Fade length (share of the parchment, from the bottom)", "height", 0, 100, 100, "%")
 
+-- Quest name marker (quest log list and objective tracker)
+local markerHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+markerHeader:SetPoint("TOPLEFT", panel, "TOPLEFT", 340, -110)
+markerHeader:SetText("Quest name marker")
+
+local marker = MakeCheck("Mark quests in log and tracker", "marker", markerHeader, -4, -8)
+
+local symbolLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+symbolLabel:SetPoint("TOPLEFT", marker, "BOTTOMLEFT", 4, -14)
+symbolLabel:SetText("Symbol")
+
+local symbol = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
+symbol:SetSize(60, 22)
+symbol:SetPoint("LEFT", symbolLabel, "RIGHT", 16, 0)
+symbol:SetAutoFocus(false)
+symbol:SetMaxLetters(4)
+symbol:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+symbol:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+symbol:SetScript("OnTextChanged", function(self, user)
+    if syncing or not user then return end
+    ns.cfg.markerSymbol = self:GetText()
+    ns.Reapply()
+end)
+widgets.markerSymbol = symbol
+
+local atStart = MakeCheck("Put the marker at the start of the name", "markerAtStart", symbolLabel, -4, -10)
+local useIcon = MakeCheck("Use an icon instead of the text symbol", "markerIcon", atStart, 0, -2)
+local useTint = MakeCheck("Use the tint colour", "markerUseTint", useIcon, 0, -2)
+
+local markerColorLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+markerColorLabel:SetPoint("TOPLEFT", useTint, "BOTTOMLEFT", 4, -14)
+markerColorLabel:SetText("Marker colour")
+
+local markerSwatch = CreateFrame("Button", nil, panel)
+markerSwatch:SetSize(32, 20)
+markerSwatch:SetPoint("LEFT", markerColorLabel, "RIGHT", 16, 0)
+markerSwatch.border = markerSwatch:CreateTexture(nil, "BACKGROUND")
+markerSwatch.border:SetAllPoints()
+markerSwatch.border:SetColorTexture(1, 1, 1, 1)
+markerSwatch.fill = markerSwatch:CreateTexture(nil, "ARTWORK")
+markerSwatch.fill:SetPoint("TOPLEFT", 2, -2)
+markerSwatch.fill:SetPoint("BOTTOMRIGHT", -2, 2)
+
+local function SetMarkerColor(r, g, b)
+    local c = ns.cfg.markerColor
+    c[1], c[2], c[3] = r, g, b
+    markerSwatch.fill:SetColorTexture(r, g, b, 1)
+    ns.Reapply()
+end
+
+markerSwatch:SetScript("OnClick", function()
+    local c = ns.cfg.markerColor
+    local pr, pg, pb = c[1], c[2], c[3]
+    local function onChange()
+        SetMarkerColor(ColorPickerFrame:GetColorRGB())
+    end
+    local function onCancel()
+        SetMarkerColor(pr, pg, pb)
+    end
+    if ColorPickerFrame.SetupColorPickerAndShow then
+        ColorPickerFrame:SetupColorPickerAndShow({
+            r = pr, g = pg, b = pb,
+            hasOpacity = false,
+            swatchFunc = onChange,
+            cancelFunc = onCancel,
+        })
+    else
+        ColorPickerFrame.hasOpacity = false
+        ColorPickerFrame.func = onChange
+        ColorPickerFrame.cancelFunc = onCancel
+        ColorPickerFrame:SetColorRGB(pr, pg, pb)
+        ColorPickerFrame:Hide()
+        ColorPickerFrame:Show()
+    end
+end)
+
+MakeSlider("Icon height", "markerHeight", 6, 24, 1, " px", markerColorLabel)
+local iconHeightSlider = widgets.markerHeight
+MakeSlider("Icon vertical position", "markerOffset", -8, 8, 1, " px", iconHeightSlider)
+MakeSlider("Icon spacing from the name", "markerGap", 0, 12, 1, " px", widgets.markerOffset)
+
+
+-- Objective lines: optional recolour for non-vanilla quests (left column, under the sliders)
+local objHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+objHeader:SetPoint("TOPLEFT", lastAnchor, "BOTTOMLEFT", 0, -28)
+objHeader:SetText("Quest objectives")
+
+local objTint = MakeCheck("Recolour the objectives of non-vanilla quests", "objectiveTint", objHeader, -4, -8)
+local objUseTint = MakeCheck("Use the tint colour", "objectiveUseTint", objTint, 0, -2)
+
+local objColorLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+objColorLabel:SetPoint("TOPLEFT", objUseTint, "BOTTOMLEFT", 4, -14)
+objColorLabel:SetText("Objective colour")
+
+local objSwatch = CreateFrame("Button", nil, panel)
+objSwatch:SetSize(32, 20)
+objSwatch:SetPoint("LEFT", objColorLabel, "RIGHT", 16, 0)
+objSwatch.border = objSwatch:CreateTexture(nil, "BACKGROUND")
+objSwatch.border:SetAllPoints()
+objSwatch.border:SetColorTexture(1, 1, 1, 1)
+objSwatch.fill = objSwatch:CreateTexture(nil, "ARTWORK")
+objSwatch.fill:SetPoint("TOPLEFT", 2, -2)
+objSwatch.fill:SetPoint("BOTTOMRIGHT", -2, 2)
+
+local function SetObjectiveColor(r, g, b)
+    local c = ns.cfg.objectiveColor
+    c[1], c[2], c[3] = r, g, b
+    objSwatch.fill:SetColorTexture(r, g, b, 1)
+    ns.Reapply()
+end
+
+objSwatch:SetScript("OnClick", function()
+    local c = ns.cfg.objectiveColor
+    local pr, pg, pb = c[1], c[2], c[3]
+    local function onChange()
+        SetObjectiveColor(ColorPickerFrame:GetColorRGB())
+    end
+    local function onCancel()
+        SetObjectiveColor(pr, pg, pb)
+    end
+    if ColorPickerFrame.SetupColorPickerAndShow then
+        ColorPickerFrame:SetupColorPickerAndShow({
+            r = pr, g = pg, b = pb,
+            hasOpacity = false,
+            swatchFunc = onChange,
+            cancelFunc = onCancel,
+        })
+    else
+        ColorPickerFrame.hasOpacity = false
+        ColorPickerFrame.func = onChange
+        ColorPickerFrame.cancelFunc = onCancel
+        ColorPickerFrame:SetColorRGB(pr, pg, pb)
+        ColorPickerFrame:Hide()
+        ColorPickerFrame:Show()
+    end
+end)
+
 local reset = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 reset:SetSize(140, 24)
-reset:SetPoint("TOPLEFT", lastAnchor, "BOTTOMLEFT", 0, -28)
+reset:SetPoint("TOPLEFT", objColorLabel, "BOTTOMLEFT", 0, -28)
 reset:SetText("Reset to defaults")
 
 function Sync()
@@ -134,8 +271,18 @@ function Sync()
     local c = ns.cfg
     widgets.showTint:SetChecked(c.showTint)
     widgets.showLogo:SetChecked(c.showLogo)
+    widgets.marker:SetChecked(c.marker)
+    widgets.markerUseTint:SetChecked(c.markerUseTint)
+    widgets.markerAtStart:SetChecked(c.markerAtStart)
+    widgets.markerIcon:SetChecked(c.markerIcon)
+    widgets.objectiveTint:SetChecked(c.objectiveTint)
+    widgets.objectiveUseTint:SetChecked(c.objectiveUseTint)
+    objSwatch.fill:SetColorTexture(c.objectiveColor[1], c.objectiveColor[2], c.objectiveColor[3], 1)
+    widgets.markerSymbol:SetText(c.markerSymbol)
+    widgets.markerSymbol:SetCursorPosition(0)
+    markerSwatch.fill:SetColorTexture(c.markerColor[1], c.markerColor[2], c.markerColor[3], 1)
     swatch.fill:SetColorTexture(c.tint[1], c.tint[2], c.tint[3], 1)
-    for _, key in ipairs({ "alpha", "topAlpha", "height" }) do
+    for _, key in ipairs({ "alpha", "topAlpha", "height", "markerHeight", "markerOffset", "markerGap" }) do
         widgets[key]:SetValue(math.floor(c[key] * sliderScale[key] + 0.5))
     end
     syncing = false

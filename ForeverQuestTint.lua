@@ -9,6 +9,18 @@ ns.defaults = {
     alpha = 1.0,    -- opacity at the very bottom
     topAlpha = 0,   -- opacity where the fade ends
     height = 0.6,   -- fraction of the visible parchment (from the bottom) the fade covers
+    marker = true,  -- prefix non-vanilla quests in the quest log list and tracker
+    markerSymbol = "\226\136\158", -- infinity sign (UTF-8 bytes)
+    markerAtStart = false, -- false: after the quest name, true: before it
+    markerIcon = true,     -- draw the marker as an icon instead of the text symbol
+    markerHeight = 8,      -- height of the infinity sign itself, in pixels (roughly the text's cap height)
+    markerOffset = 0,      -- vertical nudge in pixels, relative to the built-in baseline (ICON_BASELINE)
+    markerGap = 0,         -- extra space between the icon and the quest name, in pixels
+    markerUseTint = true,
+    markerColor = { 0.60, 0.90, 0.95 },
+    objectiveTint = false,     -- recolour the objective lines of non-vanilla quests
+    objectiveUseTint = true,   -- objectives use the tint colour...
+    objectiveColor = { 0.60, 0.90, 0.95 }, -- ...or this colour
 }
 
 local function CopyDefaults(dst, src)
@@ -332,22 +344,338 @@ local function HookLog()
     end
 end
 
+-- Marker (default: an infinity sign) in front of non-vanilla quest names in the quest log
+-- list and the objective tracker.
+local function IsNonVanilla(questID)
+    return questID and questID > 0 and not vanilla[questID]
+end
+
+local ICON_PATH = "Interface\\AddOns\\ForeverQuestTint\\Media\\Infinity.tga"
+-- The visible infinity sign inside Infinity.tga (a 64x64 image), in pixels.
+local ICON_L, ICON_R, ICON_T, ICON_B = 1, 63, 12, 51
+local ICON_ASPECT = (ICON_R - ICON_L) / (ICON_B - ICON_T)
+-- The icon is drawn this many pixels lower than centred so it sits on the text baseline. The
+-- "Icon vertical position" option is relative to this.
+local ICON_BASELINE = -2
+
+local function MarkerGlyph()
+    local cfg = ns.cfg
+    local c = cfg.markerUseTint and cfg.tint or cfg.markerColor
+    local r, g, b = math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5)
+    if cfg.markerIcon then
+        -- |T path : height : width : offX : offY : texW : texH : left : right : top : bottom : red : green : blue |t
+        -- The texture is cropped to the infinity sign itself, so "height" is the visible height.
+        local h = cfg.markerHeight
+        local w = math.floor(h * ICON_ASPECT + 0.5)
+        -- The x offset moves the drawn image without changing the text layout, so a positive gap
+        -- pushes an icon after the name away from it (and a negative one, for an icon before it).
+        local offX = cfg.markerAtStart and -cfg.markerGap or cfg.markerGap
+        return ("|T%s:%d:%d:%d:%d:64:64:%d:%d:%d:%d:%d:%d:%d|t"):format(
+            ICON_PATH, h, w, offX, cfg.markerOffset + ICON_BASELINE, ICON_L, ICON_R, ICON_T, ICON_B, r, g, b)
+    end
+    return ("|cff%02x%02x%02x%s|r"):format(r, g, b, cfg.markerSymbol)
+end
+
+-- Sets fs's text to the marked (or original) version. Remembers the original so this can be
+-- re-run safely, including after Blizzard rewrites the text. With padBlock, an entry whose
+-- marker adds a wrapped line also gets its block made taller by that line, because the tracker
+-- measured the block before the marker was added.
+local function ApplyMarker(fs, wanted, padBlock)
+    local cur = fs:GetText()
+    if not cur then return end
+    local base = cur
+    if fs.fqtMarked and cur == fs.fqtMarked then
+        base = fs.fqtBase
+    end
+    local new = base
+    local useMarker = wanted and ns.cfg.marker and (ns.cfg.markerIcon or ns.cfg.markerSymbol ~= "")
+    if useMarker then
+        if ns.cfg.markerAtStart then
+            new = MarkerGlyph() .. " " .. base
+        else
+            new = base .. " " .. MarkerGlyph()
+        end
+    end
+    fs.fqtBase = base
+    if new ~= cur then
+        fs.fqtPad = 0
+        if padBlock and useMarker and fs.GetStringHeight then
+            fs:SetText(base)
+            local baseHeight = fs:GetStringHeight()
+            fs:SetText(new)
+            fs.fqtPad = math.max(0, fs:GetStringHeight() - baseHeight)
+        else
+            fs:SetText(new)
+        end
+    end
+    fs.fqtMarked = new
+
+    if padBlock then
+        local block = fs.GetParent and fs:GetParent()
+        local pad = useMarker and fs.fqtPad or 0
+        if block and block.SetHeight then
+            local h = block:GetHeight()
+            if pad > 0 then
+                -- Blizzard resets the block's height whenever it lays out the tracker, so
+                -- re-add the padding whenever the height is not the padded one.
+                if not block.fqtPaddedHeight or math.abs(h - block.fqtPaddedHeight) > 0.5 then
+                    block:SetHeight(h + pad)
+                    block.fqtPaddedHeight = h + pad
+                end
+            elseif block.fqtPaddedHeight then
+                if math.abs(h - block.fqtPaddedHeight) <= 0.5 then
+                    block:SetHeight(h - (fs.fqtLastPad or 0))
+                end
+                block.fqtPaddedHeight = nil
+            end
+            fs.fqtLastPad = pad
+        end
+    end
+end
+
+-- Objective lines ("- 0/5 Darkhound Blood"): optionally recoloured for non-vanilla quests. Only
+-- lines that are the default white/grey are touched, so completed (green) or failed (red)
+-- objectives keep their colour.
+local function ObjectiveRGB()
+    local cfg = ns.cfg
+    local c = cfg.objectiveUseTint and cfg.tint or cfg.objectiveColor
+    return c[1], c[2], c[3]
+end
+
+local function IsDefaultTextColour(r, g, b)
+    return math.max(r, g, b) > 0.6 and math.max(r, g, b) - math.min(r, g, b) < 0.12
+end
+
+local function Near(a, b)
+    return math.abs(a - b) < 0.01
+end
+
+local function SetObjectiveColour(fs, on)
+    if not fs.GetTextColor then return end
+    local cr, cg, cb, ca = fs:GetTextColor()
+    if not cr then return end
+    if on then
+        local r, g, b = ObjectiveRGB()
+        if Near(cr, r) and Near(cg, g) and Near(cb, b) then return end
+        if IsDefaultTextColour(cr, cg, cb) or fs.fqtOrigColour then
+            -- Remember the colour Blizzard chose, once, so it can be put back.
+            if not fs.fqtOrigColour or IsDefaultTextColour(cr, cg, cb) then
+                fs.fqtOrigColour = { cr, cg, cb, ca or 1 }
+            end
+            fs:SetTextColor(r, g, b)
+        end
+    elseif fs.fqtOrigColour then
+        local o = fs.fqtOrigColour
+        fs.fqtOrigColour = nil
+        local r, g, b = ObjectiveRGB()
+        if Near(cr, r) and Near(cg, g) and Near(cb, b) then
+            fs:SetTextColor(o[1], o[2], o[3], o[4])
+        end
+    end
+end
+
+local function ColourLogObjectives()
+    local pool = QuestScrollFrame and QuestScrollFrame.objectiveFramePool
+    if not pool then return end
+    for frame in pool:EnumerateActive() do
+        if frame.Text then
+            SetObjectiveColour(frame.Text, ns.cfg.objectiveTint and IsNonVanilla(frame.questID) and true or false)
+        end
+    end
+end
+
+local function RefreshLogList()
+    if not QuestScrollFrame or not QuestScrollFrame.titleFramePool then return end
+    for button in QuestScrollFrame.titleFramePool:EnumerateActive() do
+        if button.Text then
+            ApplyMarker(button.Text, IsNonVanilla(button.questID))
+        end
+    end
+    ColourLogObjectives()
+end
+
+-- Quest log access differs between clients: prefer C_QuestLog, fall back to the old globals.
+local function NumLogEntries()
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries then
+        return (C_QuestLog.GetNumQuestLogEntries())
+    end
+    return GetNumQuestLogEntries and (GetNumQuestLogEntries()) or 0
+end
+
+local function LogEntry(i)
+    if C_QuestLog and C_QuestLog.GetInfo then
+        local info = C_QuestLog.GetInfo(i)
+        if info then return info.title, info.isHeader, info.questID end
+        return
+    end
+    if GetQuestLogTitle then
+        local title, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(i)
+        return title, isHeader, questID
+    end
+end
+
+local titleMap
+local function BuildTitleMap()
+    titleMap = {}
+    for i = 1, NumLogEntries() do
+        local title, isHeader, questID = LogEntry(i)
+        if title and not isHeader then
+            -- A title shared with a vanilla quest counts as vanilla.
+            if titleMap[title] == nil then
+                titleMap[title] = IsNonVanilla(questID) and true or false
+            elseif not IsNonVanilla(questID) then
+                titleMap[title] = false
+            end
+        end
+    end
+end
+
+-- Tracker headers can carry a quest ID ("123 - Title") and/or a level ("[8] Title").
+local function StripPrefixes(text)
+    -- The tracker wraps names in colour codes ("|cffffd100[6] Title|r") and may add icons.
+    text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", ""):gsub("|A.-|a", "")
+    text = text:gsub("^%s+", "")
+    text = text:gsub("^%d+ %- ", "")
+    text = text:gsub("^%[[^%]]*%]%s*", "")
+    return text
+end
+
+local function TrackerSetLine(line, _, _, isHeader, text)
+    if not isHeader or type(text) ~= "string" then return end
+    if not titleMap then BuildTitleMap() end
+    local wanted = titleMap[text] or titleMap[StripPrefixes(text)]
+    ApplyMarker(line.text, wanted)
+end
+
+-- The objective tracker differs between clients, so as well as hooking the older WatchFrame
+-- function, look through the tracker's text lines a few times a second and mark quest names.
+local function ColourBlockObjectives(block, headerFs, on)
+    for _, region in ipairs({ block:GetRegions() }) do
+        if region ~= headerFs and region.GetObjectType and region:GetObjectType() == "FontString" then
+            SetObjectiveColour(region, on)
+        end
+    end
+    for _, child in ipairs({ block:GetChildren() }) do
+        ColourBlockObjectives(child, headerFs, on)
+    end
+end
+
+local function ScanTracker(frame, seen)
+    if seen[frame] then return end
+    seen[frame] = true
+    for _, region in ipairs({ frame:GetRegions() }) do
+        if region.GetObjectType and region:GetObjectType() == "FontString" then
+            local text = region:GetText()
+            if text and text ~= "" then
+                local base = (region.fqtMarked and text == region.fqtMarked) and region.fqtBase or text
+                local wanted = titleMap[base] or titleMap[StripPrefixes(base)]
+                if wanted or region.fqtMarked then
+                    ApplyMarker(region, wanted, true)
+                end
+                local colourOn = wanted and ns.cfg.objectiveTint
+                if colourOn or region.fqtColouredBlock then
+                    local block = region.GetParent and region:GetParent()
+                    if colourOn and block then
+                        ColourBlockObjectives(block, region, true)
+                        region.fqtColouredBlock = block
+                    elseif region.fqtColouredBlock then
+                        ColourBlockObjectives(region.fqtColouredBlock, region, false)
+                        region.fqtColouredBlock = nil
+                    end
+                end
+            end
+        end
+    end
+    for _, child in ipairs({ frame:GetChildren() }) do
+        ScanTracker(child, seen)
+    end
+end
+
+local scanElapsed = 0
+local pollFailed = false
+local function ScanOnce()
+    local root = ObjectiveTrackerFrame or WatchFrame
+    if not root or not root:IsVisible() then return end
+    if not titleMap then BuildTitleMap() end
+    ScanTracker(root, {})
+end
+
+local function ScanOnceWrapper()
+    ScanOnce()
+    if ns.cfg.objectiveTint and QuestMapFrame and QuestMapFrame:IsVisible() then
+        ColourLogObjectives()
+    end
+end
+
+local function TrackerPoll(_, dt)
+    if pollFailed then return end
+    scanElapsed = scanElapsed + dt
+    if scanElapsed < 0.1 then return end
+    scanElapsed = 0
+    -- If this ever errors, report it once and stop rather than erroring four times a second.
+    local ok, err = pcall(ScanOnceWrapper)
+    if not ok then
+        pollFailed = true
+        print("|cffff5555Forever Quest Tint:|r tracker markers disabled after an error: " .. tostring(err))
+    end
+end
+
+local function RefreshTracker()
+    if WatchFrame_Update and WatchFrame and not InCombatLockdown() then
+        titleMap = nil
+        WatchFrame_Update()
+    end
+end
+
+local listHooked, trackerHooked, eventsHooked = false, false, false
+local function HookMarkers()
+    -- Each hook installs independently, so a missing function in one doesn't block the other.
+    if not listHooked and QuestLogQuests_Update then
+        listHooked = true
+        hooksecurefunc("QuestLogQuests_Update", RefreshLogList)
+    end
+    if not trackerHooked and WatchFrame_SetLine then
+        trackerHooked = true
+        hooksecurefunc("WatchFrame_SetLine", TrackerSetLine)
+    end
+    if not eventsHooked then
+        eventsHooked = true
+        CreateFrame("Frame"):SetScript("OnUpdate", TrackerPoll)
+        local ev = CreateFrame("Frame")
+        for _, e in ipairs({ "QUEST_LOG_UPDATE", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN" }) do
+            ev:RegisterEvent(e)
+        end
+        ev:SetScript("OnEvent", function() titleMap = nil end)
+    end
+end
+
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("PLAYER_LOGIN")
 loader:RegisterEvent("ADDON_LOADED")
 loader:SetScript("OnEvent", function(_, event, name)
     if event == "ADDON_LOADED" and name == ADDON then
-        ForeverQuestTintDB = CopyDefaults(ForeverQuestTintDB or {}, ns.defaults)
+        local db = ForeverQuestTintDB or {}
+        -- Earlier builds stored the absolute vertical nudge; it is now relative to ICON_BASELINE.
+        if db.markerOffset ~= nil and not db.markerOffsetRelative then
+            db.markerOffset = db.markerOffset - ICON_BASELINE
+        end
+        db.markerOffsetRelative = true
+        ForeverQuestTintDB = CopyDefaults(db, ns.defaults)
         ns.cfg = ForeverQuestTintDB
     end
     HookLog()
+    HookMarkers()
 end)
 HookLog()
+HookMarkers()
+
 
 -- Called by the options panel after any setting changes.
 function ns.Reapply()
     Refresh()
     RefreshLog()
+    RefreshLogList()
+    RefreshTracker()
 end
 
 SLASH_FQT1 = "/fqt"
@@ -361,6 +689,12 @@ SlashCmdList.FQT = function(msg)
             tostring(h:GetFrameLevel()), tostring(h:GetFrameStrata()), h:GetWidth(), h:GetHeight(), tostring(h:GetEffectiveAlpha()),
             tostring(pt), tostring(rel and (rel.GetDebugName and rel:GetDebugName())), tostring(relPt), tostring(x), tostring(y),
             tostring(h:GetLeft()), tostring(h:GetBottom()), tostring(h.texture:GetTexture())))
+        return
+    end
+    if msg == "hooks" then
+        print(("Forever Quest Tint hooks: quest log list=%s (QuestLogQuests_Update %s), tracker=%s (WatchFrame_SetLine %s), marker=%s")
+            :format(tostring(listHooked), tostring(QuestLogQuests_Update ~= nil), tostring(trackerHooked),
+                tostring(WatchFrame_SetLine ~= nil), tostring(ns.cfg.marker)))
         return
     end
     if msg == "id" then

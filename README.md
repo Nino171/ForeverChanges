@@ -2,7 +2,7 @@
 
 A small addon for **World of Warcraft: Forever** that tints the quest text background a light teal, to match the Forever logo, whenever the quest was **not** part of original Classic (vanilla).
 
-Vanilla quests keep the normal parchment. Everything new to Forever gets a teal gradient rising from the bottom of the page.
+Vanilla quests keep the normal parchment. Everything new to Forever gets a teal gradient rising from the bottom of the page, and a small infinity-sign marker after its name in the quest log list and the objective tracker.
 
 | Quest giver window | Map & Quest Log |
 | --- | --- |
@@ -24,6 +24,12 @@ Type `/fqt`, or open **Options → AddOns → Forever Quest Tint**.
 - **Bottom opacity**: strength of the teal at the bottom of the page.
 - **Top opacity**: strength where the fade ends. `0%` fades out completely.
 - **Fade length**: how far up the parchment the fade reaches.
+- **Quest name marker**: an infinity sign after the name of non-vanilla quests, in the quest log list and the objective tracker.
+  - Show or hide it, and put it at the start of the name instead of the end.
+  - By default it is a small icon; you can set its height, nudge it up or down to line up with the text, and adjust its spacing from the name. Or switch to a plain text symbol (up to 4 characters, so you can use any character the game's font has).
+  - By default it uses the tint colour; turn that off to pick its own colour.
+
+- **Quest objectives**: off by default. Recolours the objective lines of non-vanilla quests (in the quest log list and the tracker) from white to the tint colour, or a colour of your choice. Completed and failed objectives keep their own colours.
 
 `/fqt id` prints the ID of the quest you have open, and whether the addon considers it vanilla.
 
