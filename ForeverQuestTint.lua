@@ -5,6 +5,7 @@ local ADDON, ns = ...
 ns.defaults = {
     showTint = true,   -- teal overlay on non-vanilla quests
     showLogo = false,  -- WoW Forever logo above the quest text on non-vanilla quests
+    itemTint = true,
     tint = { 0.60, 0.90, 0.95 },
     alpha = 1.0,    -- opacity at the very bottom
     topAlpha = 0,   -- opacity where the fade ends
@@ -648,6 +649,60 @@ local function HookMarkers()
         ev:SetScript("OnEvent", function() titleMap = nil end)
     end
 end
+
+-- Item tooltips: all new items added in WoW Forever get the teal glow.
+local VANILLA_MAX_ITEM_ID = 24283
+local TOOLTIP_INSET = 3
+local itemGlows = setmetatable({}, { __mode = "k" })
+
+local function IsNonVanillaItem(itemID)
+    return itemID and itemID > VANILLA_MAX_ITEM_ID
+end
+
+local function SetItemGlow(tooltip, show)
+    local glow = itemGlows[tooltip]
+    if not show or not ns.cfg.itemTint then
+        if glow then glow:Hide() end
+        return
+    end
+    if not glow then
+        glow = tooltip:CreateTexture(nil, "ARTWORK", nil, -8)
+        glow:SetColorTexture(1, 1, 1, 1)
+        glow:SetPoint("BOTTOMLEFT", TOOLTIP_INSET, TOOLTIP_INSET)
+        glow:SetPoint("BOTTOMRIGHT", -TOOLTIP_INSET, TOOLTIP_INSET)
+        itemGlows[tooltip] = glow
+        tooltip:HookScript("OnTooltipCleared", function() glow:Hide() end)
+        tooltip:HookScript("OnSizeChanged", function(self)
+            glow:SetHeight(math.max(1, self:GetHeight() * ns.cfg.height))
+        end)
+    end
+    local cfg = ns.cfg
+    local c = cfg.tint
+    glow:SetHeight(math.max(1, tooltip:GetHeight() * cfg.height))
+    glow:SetGradient("VERTICAL",
+        CreateColor(c[1] * DARK_SCALE, c[2] * DARK_SCALE, c[3] * DARK_SCALE, cfg.alpha * DARK_ALPHA),
+        CreateColor(c[1] * DARK_SCALE, c[2] * DARK_SCALE, c[3] * DARK_SCALE, cfg.topAlpha * DARK_ALPHA))
+    glow:Show()
+end
+
+local function HookItemTooltips()
+    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
+            if tooltip.CreateTexture then
+                SetItemGlow(tooltip, IsNonVanillaItem(data and data.id))
+            end
+        end)
+        return
+    end
+    for _, tooltip in ipairs({ GameTooltip, ItemRefTooltip, ShoppingTooltip1, ShoppingTooltip2 }) do
+        tooltip:HookScript("OnTooltipSetItem", function(self)
+            local _, link = self:GetItem()
+            local id = link and tonumber(link:match("item:(%d+)"))
+            SetItemGlow(self, IsNonVanillaItem(id))
+        end)
+    end
+end
+HookItemTooltips()
 
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("PLAYER_LOGIN")

@@ -34,10 +34,11 @@ local function MakeCheck(label, key, anchor, x, y)
 end
 local showTint = MakeCheck("Tint the parchment teal", "showTint", sub, -4, -16)
 local showLogo = MakeCheck("Add the WoW Forever logo above the quest text", "showLogo", showTint, 0, -2)
+local itemTint = MakeCheck("Tint the tooltips of items new to Forever", "itemTint", showLogo, 0, -2)
 
 -- Colour swatch
 local colorLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-colorLabel:SetPoint("TOPLEFT", showLogo, "BOTTOMLEFT", 4, -20)
+colorLabel:SetPoint("TOPLEFT", itemTint, "BOTTOMLEFT", 4, -20)
 colorLabel:SetText("Tint colour")
 
 local swatch = CreateFrame("Button", nil, panel)
@@ -271,6 +272,7 @@ function Sync()
     local c = ns.cfg
     widgets.showTint:SetChecked(c.showTint)
     widgets.showLogo:SetChecked(c.showLogo)
+    widgets.itemTint:SetChecked(c.itemTint)
     widgets.marker:SetChecked(c.marker)
     widgets.markerUseTint:SetChecked(c.markerUseTint)
     widgets.markerAtStart:SetChecked(c.markerAtStart)
