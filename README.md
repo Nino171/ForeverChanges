@@ -8,6 +8,10 @@ Vanilla quests keep the normal parchment. Everything new to Forever gets a teal 
 | --- | --- |
 | ![Quest giver window](screenshots/quest-giver.png) | ![Map and quest log](screenshots/quest-log.webp) |
 
+**New Items hover over** 
+
+![Item tooltip](screenshots/item-tooltip.png)
+
 ## Install
 
 1. Download the latest release zip.
@@ -20,6 +24,7 @@ Type `/fqt`, or open **Options → AddOns → Forever Quest Tint**.
 
 - **Tint the parchment teal**: on by default.
 - **Add the WoW Forever logo**: off by default. Puts the logo in the top-right corner of the bar above the quest text. Works with or without the tint.
+- **Tint the tooltips of items new to Forever**: on by default. Adds the teal glow to the bottom of the tooltip of any item that was not in original Classic.
 - **Tint colour**: the colour of the overlay.
 - **Bottom opacity**: strength of the teal at the bottom of the page.
 - **Top opacity**: strength where the fade ends. `0%` fades out completely.

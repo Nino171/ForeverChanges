@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.0
+- Item tooltips: items that are new to Forever get the teal glow at the bottom of their tooltip. It can be turned off in the options.
+
 ## 0.5.0
 - New quest name marker: quests that were not in original Classic get an infinity sign after their name in the Map & Quest Log list and in the objective tracker. It is a small icon in the tint colour by default.
 - Marker options: show or hide it, use the icon or a plain text symbol, change the symbol, set the icon height, vertical position and spacing from the name, choose its colour (or follow the tint colour), and move it to the start of the name.
