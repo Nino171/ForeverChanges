@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0
+- Spells: spells that are new in Forever or changed from Classic get the teal glow in the spellbook, at the trainer, talents and in their tooltips.
+- The tooltip of a changed spell lists in orange how it was in vanilla (cost, cast time, cooldown, range, description), where that is known exactly. Both can be turned off in the options.
+- The glow on item tooltips is a little weaker, as the tooltip background is black.
+
 ## 0.6.0
 - Item tooltips: items that are new to Forever get the teal glow at the bottom of their tooltip. It can be turned off in the options.
 

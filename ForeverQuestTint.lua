@@ -6,6 +6,8 @@ ns.defaults = {
     showTint = true,   -- teal overlay on non-vanilla quests
     showLogo = false,  -- WoW Forever logo above the quest text on non-vanilla quests
     itemTint = true,
+    spellTint = true,     -- teal glow on new and changed spells in the spellbook, trainer and tooltips
+    spellVanilla = true,  -- orange lines in the tooltip of a changed spell showing how it was in vanilla
     tint = { 0.60, 0.90, 0.95 },
     alpha = 1.0,    -- opacity at the very bottom
     topAlpha = 0,   -- opacity where the fade ends
@@ -56,6 +58,7 @@ local REWARDS_OVERLAP = 24 -- how far the overlay tucks under the Rewards panel
 -- Black Quest Text Contrast (setting 4) gives a dark panel; see ApplyOverlay.
 local DARK_SCALE = 0.75 -- brightness of the teal on dark backgrounds
 local DARK_ALPHA = 0.7  -- strength of the teal on dark backgrounds, relative to cfg.alpha
+local BLACK_PANEL_ALPHA = 0.6 -- same for tooltips, the spellbook and the trainer, which are black
 
 local function IsDarkBackground()
     if QuestTextContrast and QuestTextContrast.UseLightText then
@@ -650,6 +653,14 @@ local function HookMarkers()
     end
 end
 
+-- Tooltips, the spellbook and the trainer are black, so they get a flat teal glow rising from the bottom.
+local function GlowColors()
+    local cfg = ns.cfg
+    local c = cfg.tint
+    local r, g, b = c[1] * DARK_SCALE, c[2] * DARK_SCALE, c[3] * DARK_SCALE
+    return CreateColor(r, g, b, cfg.alpha * BLACK_PANEL_ALPHA), CreateColor(r, g, b, cfg.topAlpha * BLACK_PANEL_ALPHA)
+end
+
 -- Item tooltips: all new items added in WoW Forever get the teal glow.
 local VANILLA_MAX_ITEM_ID = 24283
 local TOOLTIP_INSET = 3
@@ -659,9 +670,9 @@ local function IsNonVanillaItem(itemID)
     return itemID and itemID > VANILLA_MAX_ITEM_ID
 end
 
-local function SetItemGlow(tooltip, show)
+local function SetTooltipGlow(tooltip, show)
     local glow = itemGlows[tooltip]
-    if not show or not ns.cfg.itemTint then
+    if not show then
         if glow then glow:Hide() end
         return
     end
@@ -676,33 +687,130 @@ local function SetItemGlow(tooltip, show)
             glow:SetHeight(math.max(1, self:GetHeight() * ns.cfg.height))
         end)
     end
-    local cfg = ns.cfg
-    local c = cfg.tint
-    glow:SetHeight(math.max(1, tooltip:GetHeight() * cfg.height))
-    glow:SetGradient("VERTICAL",
-        CreateColor(c[1] * DARK_SCALE, c[2] * DARK_SCALE, c[3] * DARK_SCALE, cfg.alpha * DARK_ALPHA),
-        CreateColor(c[1] * DARK_SCALE, c[2] * DARK_SCALE, c[3] * DARK_SCALE, cfg.topAlpha * DARK_ALPHA))
+    glow:SetHeight(math.max(1, tooltip:GetHeight() * ns.cfg.height))
+    glow:SetGradient("VERTICAL", GlowColors())
     glow:Show()
+end
+
+-- Spells: ns.NewSpells / ns.ChangedSpells come from SpellData.lua. A changed spell's value is how
+-- it was in vanilla (when known exactly), which is added to its tooltip in orange.
+local VANILLA_R, VANILLA_G, VANILLA_B = 1, 0.55, 0.15
+
+local function IsMarkedSpell(spellID)
+    return spellID and (ns.NewSpells[spellID] or ns.ChangedSpells[spellID] ~= nil) and true or false
+end
+
+local function OnSpellTooltip(tooltip, data)
+    local id = data and data.id
+    if tooltip.CreateTexture then
+        SetTooltipGlow(tooltip, ns.cfg.spellTint and IsMarkedSpell(id))
+    end
+    local vanilla = ns.cfg.spellVanilla and id and ns.ChangedSpells[id]
+    if type(vanilla) == "string" then
+        for line in vanilla:gmatch("[^\n]+") do
+            tooltip:AddLine(line, VANILLA_R, VANILLA_G, VANILLA_B, true)
+        end
+    end
 end
 
 local function HookItemTooltips()
     if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
         TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
             if tooltip.CreateTexture then
-                SetItemGlow(tooltip, IsNonVanillaItem(data and data.id))
+                SetTooltipGlow(tooltip, ns.cfg.itemTint and IsNonVanillaItem(data and data.id))
             end
         end)
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Spell, OnSpellTooltip)
         return
     end
     for _, tooltip in ipairs({ GameTooltip, ItemRefTooltip, ShoppingTooltip1, ShoppingTooltip2 }) do
         tooltip:HookScript("OnTooltipSetItem", function(self)
             local _, link = self:GetItem()
             local id = link and tonumber(link:match("item:(%d+)"))
-            SetItemGlow(self, IsNonVanillaItem(id))
+            SetTooltipGlow(self, ns.cfg.itemTint and IsNonVanillaItem(id))
         end)
     end
 end
 HookItemTooltips()
+
+-- Spellbook entries and trainer rows: a soft teal glow along the bottom of the entry. Glow.tga fades
+-- out at every edge, so the glow reaches past the entry a little to fill it.
+local GLOW_PATH = "Interface/AddOns/ForeverQuestTint/Media/Glow.tga"
+local GLOW_OUTSET_X, GLOW_OUTSET_Y = 10, 6
+local rowGlows = setmetatable({}, { __mode = "k" })
+
+local function SetRowGlow(frame, anchor, show, layer)
+    local glow = rowGlows[frame]
+    if not show then
+        if glow then glow:Hide() end
+        return
+    end
+    if not glow then
+        glow = frame:CreateTexture(nil, layer, nil, 1)
+        glow:SetTexture(GLOW_PATH)
+        rowGlows[frame] = glow
+    end
+    local height = anchor:GetHeight()
+    if not height or height < 1 then height = frame:GetHeight() end
+    glow:ClearAllPoints()
+    glow:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", -GLOW_OUTSET_X, -GLOW_OUTSET_Y)
+    glow:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", GLOW_OUTSET_X, -GLOW_OUTSET_Y)
+    glow:SetHeight(math.max(1, height * ns.cfg.height + GLOW_OUTSET_Y))
+    glow:SetGradient("VERTICAL", GlowColors())
+    glow:Show()
+end
+
+local function TintSpellBookItem(item)
+    local info = item.spellBookItemInfo
+    SetRowGlow(item, item.Backplate or item, ns.cfg.spellTint and info and IsMarkedSpell(info.spellID), "BACKGROUND")
+end
+
+local function RefreshSpellBook()
+    local book = PlayerSpellsFrame and PlayerSpellsFrame.SpellBookFrame
+    if book and book.ForEachDisplayedSpell then
+        book:ForEachDisplayedSpell(TintSpellBookItem)
+    end
+end
+
+local spellBookHooked = false
+local function HookSpellBook()
+    -- The spellbook loads on demand; its entries copy these methods when they are created, so hook first.
+    if spellBookHooked or not SpellBookItemMixin then return end
+    spellBookHooked = true
+    hooksecurefunc(SpellBookItemMixin, "UpdateVisuals", TintSpellBookItem)
+    hooksecurefunc(SpellBookItemMixin, "ClearSpellData", function(item)
+        SetRowGlow(item, nil, false)
+    end)
+    RefreshSpellBook()
+end
+
+local function TintTrainerButton(button, skillIndex)
+    local show = false
+    if ns.cfg.spellTint and skillIndex and C_TooltipInfo and C_TooltipInfo.GetTrainerService then
+        local ok, data = pcall(C_TooltipInfo.GetTrainerService, skillIndex)
+        show = ok and data and IsMarkedSpell(data.id)
+    end
+    -- ARTWORK sits above the row's background texture.
+    SetRowGlow(button, button, show, "ARTWORK")
+end
+
+local function RefreshTrainer()
+    local box = ClassTrainerFrame and ClassTrainerFrame.ScrollBox
+    if not (box and box.ForEachFrame and ClassTrainerFrame:IsShown()) then return end
+    box:ForEachFrame(function(button)
+        if button.nameSubText then TintTrainerButton(button, button:GetID()) end
+    end)
+end
+
+local trainerHooked = false
+local function HookTrainer()
+    if trainerHooked or not ClassTrainerFrame_InitServiceButton then return end
+    trainerHooked = true
+    hooksecurefunc("ClassTrainerFrame_InitServiceButton", function(button, elementData)
+        elementData = elementData and (elementData.data or elementData)
+        TintTrainerButton(button, elementData and elementData.skillIndex)
+    end)
+end
 
 local loader = CreateFrame("Frame")
 loader:RegisterEvent("PLAYER_LOGIN")
@@ -720,9 +828,13 @@ loader:SetScript("OnEvent", function(_, event, name)
     end
     HookLog()
     HookMarkers()
+    HookSpellBook()
+    HookTrainer()
 end)
 HookLog()
 HookMarkers()
+HookSpellBook()
+HookTrainer()
 
 
 -- Called by the options panel after any setting changes.
@@ -731,6 +843,8 @@ function ns.Reapply()
     RefreshLog()
     RefreshLogList()
     RefreshTracker()
+    RefreshSpellBook()
+    RefreshTrainer()
 end
 
 SLASH_FQT1 = "/fqt"

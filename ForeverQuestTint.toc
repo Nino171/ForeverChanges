@@ -1,10 +1,11 @@
 ## Interface: 16001
 ## Title: Forever Quest Tint
-## Notes: Tints the quest window teal and marks quest names for quests that were not in original Classic.
+## Notes: Tints quests, items and spells that were not in original Classic teal, and marks quest names.
 ## Author: xanastar
-## Version: 0.6.0
+## Version: 0.7.0
 ## SavedVariables: ForeverQuestTintDB
 
 VanillaQuests.lua
+SpellData.lua
 ForeverQuestTint.lua
 Options.lua

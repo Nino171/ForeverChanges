@@ -206,6 +206,14 @@ local iconHeightSlider = widgets.markerHeight
 MakeSlider("Icon vertical position", "markerOffset", -8, 8, 1, " px", iconHeightSlider)
 MakeSlider("Icon spacing from the name", "markerGap", 0, 12, 1, " px", widgets.markerOffset)
 
+-- Spells: new and changed spells in the spellbook, trainer and tooltips (right column, under the marker)
+local spellHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+spellHeader:SetPoint("TOPLEFT", widgets.markerGap, "BOTTOMLEFT", 0, -28)
+spellHeader:SetText("Spells")
+
+local spellTint = MakeCheck("Tint new and changed spells", "spellTint", spellHeader, -4, -8)
+local spellVanilla = MakeCheck("Show vanilla values of changed spells", "spellVanilla", spellTint, 0, -2)
+
 
 -- Objective lines: optional recolour for non-vanilla quests (left column, under the sliders)
 local objHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
@@ -273,6 +281,8 @@ function Sync()
     widgets.showTint:SetChecked(c.showTint)
     widgets.showLogo:SetChecked(c.showLogo)
     widgets.itemTint:SetChecked(c.itemTint)
+    widgets.spellTint:SetChecked(c.spellTint)
+    widgets.spellVanilla:SetChecked(c.spellVanilla)
     widgets.marker:SetChecked(c.marker)
     widgets.markerUseTint:SetChecked(c.markerUseTint)
     widgets.markerAtStart:SetChecked(c.markerAtStart)
