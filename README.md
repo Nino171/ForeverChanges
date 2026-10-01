@@ -1,6 +1,6 @@
-# Forever Quest Tint
+# Forever Changes
 
-A small addon for **World of Warcraft: Forever** that tints the quest text background a light teal, to match the Forever logo, whenever the quest was **not** part of original Classic (vanilla).
+A small addon for **World of Warcraft: Forever** that tints what is new or different compared with original Classic (vanilla): quests, items and spells get a light teal glow, and changed spells show how they were in vanilla.
 
 Vanilla quests keep the normal parchment. Everything new to Forever gets a teal gradient rising from the bottom of the page, and a small infinity-sign marker after its name in the quest log list and the objective tracker. New items, and new or changed spells, get the same glow in their tooltips, and spells also in the spellbook and at the trainer.
 
@@ -15,15 +15,14 @@ Vanilla quests keep the normal parchment. Everything new to Forever gets a teal 
 ## Install
 
 1. Download the latest release zip.
-2. Extract it so you have `World of Warcraft\_classic_beta_\Interface\AddOns\ForeverQuestTint`.
+2. Extract it so you have `World of Warcraft\_classic_beta_\Interface\AddOns\ForeverChanges`.
 3. Restart the game or type `/reload`.
 
 ## Options
 
-Type `/fqt`, or open **Options → AddOns → Forever Quest Tint**.
+Type `/fchanges`, or open **Options → AddOns → Forever Changes**.
 
 - **Tint the parchment teal**: on by default.
-- **Add the WoW Forever logo**: off by default. Puts the logo in the top-right corner of the bar above the quest text. Works with or without the tint.
 - **Tint the tooltips of items new to Forever**: on by default. Adds the teal glow to the bottom of the tooltip of any item that was not in original Classic.
 - **Tint new and changed spells**: on by default. Adds the teal glow to spells that are new in Forever or differ from Classic, in the spellbook, at the trainer and in their tooltips.
 - **Show vanilla values of changed spells**: on by default. Adds orange lines to the tooltip of a changed spell with how it was in vanilla: the cost, cast time, cooldown, range and description that differ.
@@ -38,11 +37,11 @@ Type `/fqt`, or open **Options → AddOns → Forever Quest Tint**.
 
 - **Quest objectives**: off by default. Recolours the objective lines of non-vanilla quests (in the quest log list and the tracker) from white to the tint colour, or a colour of your choice. Completed and failed objectives keep their own colours.
 
-`/fqt id` prints the ID of the quest you have open, and whether the addon considers it vanilla.
+`/fchanges id` prints the ID of the quest you have open, and whether the addon considers it vanilla.
 
 ## How it decides what is vanilla
 
-The addon contains a list of the quest IDs that existed in original Classic (`VanillaQuests.lua`). Any quest not on that list is tinted. The list was generated from the Classic quest database in [Questie](https://github.com/Questie/Questie). A few genuine vanilla quests may be missing, and would show as teal. If you spot one, open an issue with the ID from `/fqt id`.
+The addon contains a list of the quest IDs that existed in original Classic (`VanillaQuests.lua`). Any quest not on that list is tinted. The list was generated from the Classic quest database in [Questie](https://github.com/Questie/Questie). A few genuine vanilla quests may be missing, and would show as teal. If you spot one, open an issue with the ID from `/fchanges id`.
 
 Only quests that are open in a quest window are tinted. Gossip windows have no quest ID, so they are left alone.
 
@@ -52,6 +51,10 @@ Spells are decided by comparing the game data of Forever with Classic Era (`Spel
 
 - Built for the Forever beta (interface `16001`). It relies on Blizzard's quest log art, so it may need updates if that changes.
 
-## Licence
+## Licence and credits
 
 GPL-3.0-or-later. See [LICENSE](LICENSE). The vanilla quest list is derived from Questie's data, which is GPL-3.0 licensed.
+
+Forever Changes is a modified fork (2026) of Forever Quest Tint by Alex Diakovsky (xanastar), which is also GPL-3.0-or-later. The changes are listed in the [changelog](CHANGELOG.md).
+
+Not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft is a trademark of Blizzard Entertainment.

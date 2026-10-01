@@ -4,7 +4,6 @@ local ADDON, ns = ...
 -- bottom to cfg.topAlpha at cfg.height of the way up. Settings live in the options panel.
 ns.defaults = {
     showTint = true,   -- teal overlay on non-vanilla quests
-    showLogo = false,  -- WoW Forever logo above the quest text on non-vanilla quests
     itemTint = true,
     spellTint = true,     -- teal glow on new and changed spells in the spellbook, trainer and tooltips
     spellVanilla = true,  -- orange lines in the tooltip of a changed spell showing how it was in vanilla
@@ -67,82 +66,10 @@ local function IsDarkBackground()
     return tonumber(GetCVar("QuestTextContrast") or 0) == 4
 end
 
-local LOGO_PATH = "Interface/AddOns/ForeverQuestTint/Media/ForeverLogo.tga"
-local logos = setmetatable({}, { __mode = "k" })
-
--- Logo: a small badge in the top-right corner of the bar just above the quest text.
--- It lives in its own high-level frame so Blizzard's window art can't cover it.
-local LOGO_SIZE = 40
-local GIVER_LOGO_X = 26 -- quest-giver window: pushes the logo out to the right end of the bar
-local GIVER_LOGO_Y = -1 -- quest-giver window: vertical offset above the parchment (negative = lower)
-local LOG_LOGO_Y = -22 -- fallback vertical offset from the log parchment's top edge
-
--- Frames are ordered by strata first, then level. Find the topmost (strata, level) anywhere in
--- a window so the logo can be drawn above all of its art.
-local STRATA_ORDER = {
-    BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5,
-    FULLSCREEN = 6, FULLSCREEN_DIALOG = 7, TOOLTIP = 8,
-}
-local function TopOrder(frame, bestStrata, bestLevel)
-    local strata = frame:GetFrameStrata()
-    local level = frame:GetFrameLevel()
-    local si, bi = STRATA_ORDER[strata] or 0, STRATA_ORDER[bestStrata] or 0
-    if si > bi or (si == bi and level > bestLevel) then
-        bestStrata, bestLevel = strata, level
-    end
-    for _, child in ipairs({ frame:GetChildren() }) do
-        bestStrata, bestLevel = TopOrder(child, bestStrata, bestLevel)
-    end
-    return bestStrata, bestLevel
-end
-
-local function ApplyLogo(tex, show)
-    local holder = logos[tex]
-    if not show then
-        if holder then holder:Hide() end
-        return
-    end
-    if not holder then
-        -- Parent to the outermost window frame: the details frame itself may clip its children,
-        -- and the bar above the parchment is outside its rectangle.
-        local top = tex:GetParent()
-        while top:GetParent() and top:GetParent() ~= UIParent do
-            top = top:GetParent()
-        end
-        holder = CreateFrame("Frame", nil, top)
-        local strata, level = TopOrder(top, "BACKGROUND", 0)
-        holder:SetFrameStrata(strata)
-        holder:SetFrameLevel(math.min(level + 1, 9999))
-        holder:SetSize(LOGO_SIZE, LOGO_SIZE)
-        holder.texture = holder:CreateTexture(nil, "OVERLAY")
-        holder.texture:SetAllPoints()
-        holder.texture:SetTexture(LOGO_PATH)
-        logos[tex] = holder
-    end
-    holder:ClearAllPoints()
-    local details = QuestMapFrame and QuestMapFrame.DetailsFrame
-    if details and tex:GetParent() == details then
-        -- Quest log: the parchment art has transparent padding above the paper, so line the logo
-        -- up with the Back button instead (falls back to a fixed offset if it can't be found).
-        local yOff = LOG_LOGO_Y
-        local back = details.BackButton or QuestMapFrame.BackButton
-        local top = tex:GetTop()
-        if back and back.GetCenter and top then
-            local _, cy = back:GetCenter()
-            if cy then yOff = cy - top end
-        end
-        holder:SetPoint("RIGHT", tex, "TOPRIGHT", -6, yOff)
-    else
-        holder:SetPoint("BOTTOMRIGHT", tex, "TOPRIGHT", GIVER_LOGO_X, GIVER_LOGO_Y)
-    end
-    holder:Show()
-end
-
 local overlays = setmetatable({}, { __mode = "k" })
 
-local function ApplyOverlay(tex, tinted, noLogo)
+local function ApplyOverlay(tex, tinted)
     local ov = overlays[tex]
-    ApplyLogo(tex, tinted and ns.cfg.showLogo and not noLogo)
     tinted = tinted and ns.cfg.showTint
     if not tinted then
         if ov then ov:Hide() end
@@ -228,8 +155,7 @@ local function Walk(frame, fn, seen)
 end
 
 local function SetTinted(tinted)
-    -- The window has several parchment-like textures (one per panel); overlay all of them,
-    -- but show the logo only once, on the largest visible one.
+    -- The window has several parchment-like textures (one per panel); overlay all of them.
     local candidates = {}
     if QuestFrame then
         Walk(QuestFrame, function(tex)
@@ -242,13 +168,8 @@ local function SetTinted(tinted)
             if tex and tex:IsShown() then candidates[#candidates + 1] = tex end
         end
     end
-    local best, bestArea = nil, 0
     for _, tex in ipairs(candidates) do
-        local area = tex:IsVisible() and (tex:GetWidth() * tex:GetHeight()) or 0
-        if area > bestArea then best, bestArea = tex, area end
-    end
-    for _, tex in ipairs(candidates) do
-        ApplyOverlay(tex, tinted, tex ~= best)
+        ApplyOverlay(tex, tinted)
     end
 end
 
@@ -317,8 +238,6 @@ keeper:SetScript("OnUpdate", function(_, dt)
     elapsed = 0
     if logTinted and logBg and logBg:IsVisible() then
         ApplyOverlay(logBg, true)
-    elseif logBg then
-        ApplyLogo(logBg, false)
     end
 end)
 
@@ -354,7 +273,7 @@ local function IsNonVanilla(questID)
     return questID and questID > 0 and not vanilla[questID]
 end
 
-local ICON_PATH = "Interface\\AddOns\\ForeverQuestTint\\Media\\Infinity.tga"
+local ICON_PATH = "Interface\\AddOns\\ForeverChanges\\Media\\Infinity.tga"
 -- The visible infinity sign inside Infinity.tga (a 64x64 image), in pixels.
 local ICON_L, ICON_R, ICON_T, ICON_B = 1, 63, 12, 51
 local ICON_ASPECT = (ICON_R - ICON_L) / (ICON_B - ICON_T)
@@ -388,8 +307,8 @@ local function ApplyMarker(fs, wanted, padBlock)
     local cur = fs:GetText()
     if not cur then return end
     local base = cur
-    if fs.fqtMarked and cur == fs.fqtMarked then
-        base = fs.fqtBase
+    if fs.fchMarked and cur == fs.fchMarked then
+        base = fs.fchBase
     end
     local new = base
     local useMarker = wanted and ns.cfg.marker and (ns.cfg.markerIcon or ns.cfg.markerSymbol ~= "")
@@ -400,39 +319,39 @@ local function ApplyMarker(fs, wanted, padBlock)
             new = base .. " " .. MarkerGlyph()
         end
     end
-    fs.fqtBase = base
+    fs.fchBase = base
     if new ~= cur then
-        fs.fqtPad = 0
+        fs.fchPad = 0
         if padBlock and useMarker and fs.GetStringHeight then
             fs:SetText(base)
             local baseHeight = fs:GetStringHeight()
             fs:SetText(new)
-            fs.fqtPad = math.max(0, fs:GetStringHeight() - baseHeight)
+            fs.fchPad = math.max(0, fs:GetStringHeight() - baseHeight)
         else
             fs:SetText(new)
         end
     end
-    fs.fqtMarked = new
+    fs.fchMarked = new
 
     if padBlock then
         local block = fs.GetParent and fs:GetParent()
-        local pad = useMarker and fs.fqtPad or 0
+        local pad = useMarker and fs.fchPad or 0
         if block and block.SetHeight then
             local h = block:GetHeight()
             if pad > 0 then
                 -- Blizzard resets the block's height whenever it lays out the tracker, so
                 -- re-add the padding whenever the height is not the padded one.
-                if not block.fqtPaddedHeight or math.abs(h - block.fqtPaddedHeight) > 0.5 then
+                if not block.fchPaddedHeight or math.abs(h - block.fchPaddedHeight) > 0.5 then
                     block:SetHeight(h + pad)
-                    block.fqtPaddedHeight = h + pad
+                    block.fchPaddedHeight = h + pad
                 end
-            elseif block.fqtPaddedHeight then
-                if math.abs(h - block.fqtPaddedHeight) <= 0.5 then
-                    block:SetHeight(h - (fs.fqtLastPad or 0))
+            elseif block.fchPaddedHeight then
+                if math.abs(h - block.fchPaddedHeight) <= 0.5 then
+                    block:SetHeight(h - (fs.fchLastPad or 0))
                 end
-                block.fqtPaddedHeight = nil
+                block.fchPaddedHeight = nil
             end
-            fs.fqtLastPad = pad
+            fs.fchLastPad = pad
         end
     end
 end
@@ -461,16 +380,16 @@ local function SetObjectiveColour(fs, on)
     if on then
         local r, g, b = ObjectiveRGB()
         if Near(cr, r) and Near(cg, g) and Near(cb, b) then return end
-        if IsDefaultTextColour(cr, cg, cb) or fs.fqtOrigColour then
+        if IsDefaultTextColour(cr, cg, cb) or fs.fchOrigColour then
             -- Remember the colour Blizzard chose, once, so it can be put back.
-            if not fs.fqtOrigColour or IsDefaultTextColour(cr, cg, cb) then
-                fs.fqtOrigColour = { cr, cg, cb, ca or 1 }
+            if not fs.fchOrigColour or IsDefaultTextColour(cr, cg, cb) then
+                fs.fchOrigColour = { cr, cg, cb, ca or 1 }
             end
             fs:SetTextColor(r, g, b)
         end
-    elseif fs.fqtOrigColour then
-        local o = fs.fqtOrigColour
-        fs.fqtOrigColour = nil
+    elseif fs.fchOrigColour then
+        local o = fs.fchOrigColour
+        fs.fchOrigColour = nil
         local r, g, b = ObjectiveRGB()
         if Near(cr, r) and Near(cg, g) and Near(cb, b) then
             fs:SetTextColor(o[1], o[2], o[3], o[4])
@@ -571,20 +490,20 @@ local function ScanTracker(frame, seen)
         if region.GetObjectType and region:GetObjectType() == "FontString" then
             local text = region:GetText()
             if text and text ~= "" then
-                local base = (region.fqtMarked and text == region.fqtMarked) and region.fqtBase or text
+                local base = (region.fchMarked and text == region.fchMarked) and region.fchBase or text
                 local wanted = titleMap[base] or titleMap[StripPrefixes(base)]
-                if wanted or region.fqtMarked then
+                if wanted or region.fchMarked then
                     ApplyMarker(region, wanted, true)
                 end
                 local colourOn = wanted and ns.cfg.objectiveTint
-                if colourOn or region.fqtColouredBlock then
+                if colourOn or region.fchColouredBlock then
                     local block = region.GetParent and region:GetParent()
                     if colourOn and block then
                         ColourBlockObjectives(block, region, true)
-                        region.fqtColouredBlock = block
-                    elseif region.fqtColouredBlock then
-                        ColourBlockObjectives(region.fqtColouredBlock, region, false)
-                        region.fqtColouredBlock = nil
+                        region.fchColouredBlock = block
+                    elseif region.fchColouredBlock then
+                        ColourBlockObjectives(region.fchColouredBlock, region, false)
+                        region.fchColouredBlock = nil
                     end
                 end
             end
@@ -620,7 +539,7 @@ local function TrackerPoll(_, dt)
     local ok, err = pcall(ScanOnceWrapper)
     if not ok then
         pollFailed = true
-        print("|cffff5555Forever Quest Tint:|r tracker markers disabled after an error: " .. tostring(err))
+        print("|cffff5555Forever Changes:|r tracker markers disabled after an error: " .. tostring(err))
     end
 end
 
@@ -735,7 +654,7 @@ HookItemTooltips()
 
 -- Spellbook entries and trainer rows: a soft teal glow along the bottom of the entry. Glow.tga fades
 -- out at every edge, so the glow reaches past the entry a little to fill it.
-local GLOW_PATH = "Interface/AddOns/ForeverQuestTint/Media/Glow.tga"
+local GLOW_PATH = "Interface/AddOns/ForeverChanges/Media/Glow.tga"
 local GLOW_OUTSET_X, GLOW_OUTSET_Y = 10, 6
 local rowGlows = setmetatable({}, { __mode = "k" })
 
@@ -817,14 +736,9 @@ loader:RegisterEvent("PLAYER_LOGIN")
 loader:RegisterEvent("ADDON_LOADED")
 loader:SetScript("OnEvent", function(_, event, name)
     if event == "ADDON_LOADED" and name == ADDON then
-        local db = ForeverQuestTintDB or {}
-        -- Earlier builds stored the absolute vertical nudge; it is now relative to ICON_BASELINE.
-        if db.markerOffset ~= nil and not db.markerOffsetRelative then
-            db.markerOffset = db.markerOffset - ICON_BASELINE
-        end
-        db.markerOffsetRelative = true
-        ForeverQuestTintDB = CopyDefaults(db, ns.defaults)
-        ns.cfg = ForeverQuestTintDB
+        local db = ForeverChangesDB or {}
+        ForeverChangesDB = CopyDefaults(db, ns.defaults)
+        ns.cfg = ForeverChangesDB
     end
     HookLog()
     HookMarkers()
@@ -847,21 +761,10 @@ function ns.Reapply()
     RefreshTrainer()
 end
 
-SLASH_FQT1 = "/fqt"
-SlashCmdList.FQT = function(msg)
-    if msg == "logo" then
-        local h = logBg and logos[logBg]
-        if not h then print("Forever Quest Tint: no log logo frame yet (tick 'Add logo', open a non-vanilla quest in the log)"); return end
-        local pt, rel, relPt, x, y = h:GetPoint()
-        print(("Forever Quest Tint logo: shown=%s visible=%s parent=%s level=%s strata=%s size=%dx%d alpha=%s point=%s to %s %s (%s,%s) left=%s bottom=%s tex=%s"):format(
-            tostring(h:IsShown()), tostring(h:IsVisible()), tostring(h:GetParent():GetName() or h:GetParent():GetDebugName()),
-            tostring(h:GetFrameLevel()), tostring(h:GetFrameStrata()), h:GetWidth(), h:GetHeight(), tostring(h:GetEffectiveAlpha()),
-            tostring(pt), tostring(rel and (rel.GetDebugName and rel:GetDebugName())), tostring(relPt), tostring(x), tostring(y),
-            tostring(h:GetLeft()), tostring(h:GetBottom()), tostring(h.texture:GetTexture())))
-        return
-    end
+SLASH_FCHANGES1 = "/fchanges"
+SlashCmdList.FCHANGES = function(msg)
     if msg == "hooks" then
-        print(("Forever Quest Tint hooks: quest log list=%s (QuestLogQuests_Update %s), tracker=%s (WatchFrame_SetLine %s), marker=%s")
+        print(("Forever Changes hooks: quest log list=%s (QuestLogQuests_Update %s), tracker=%s (WatchFrame_SetLine %s), marker=%s")
             :format(tostring(listHooked), tostring(QuestLogQuests_Update ~= nil), tostring(trackerHooked),
                 tostring(WatchFrame_SetLine ~= nil), tostring(ns.cfg.marker)))
         return
@@ -872,8 +775,8 @@ SlashCmdList.FQT = function(msg)
         local details = QuestMapFrame and QuestMapFrame.DetailsFrame
         local logID = details and details.questID
         local bg = QuestMapFrame and QuestMapFrame.DetailsFrame and QuestMapFrame.DetailsFrame.Bg
-        print("Forever Quest Tint: log parchment atlas = " .. tostring(bg and bg:GetAtlas()) .. ", file = " .. tostring(bg and bg:GetTexture()))
-        print(("Forever Quest Tint: dialog quest id %s (vanilla=%s), log quest id %s (vanilla=%s)"):format(
+        print("Forever Changes: log parchment atlas = " .. tostring(bg and bg:GetAtlas()) .. ", file = " .. tostring(bg and bg:GetTexture()))
+        print(("Forever Changes: dialog quest id %s (vanilla=%s), log quest id %s (vanilla=%s)"):format(
             tostring(id), tostring(id and vanilla[id] or false), tostring(logID), tostring(logID and vanilla[logID] or false)))
         return
     end

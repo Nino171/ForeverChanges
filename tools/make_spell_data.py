@@ -59,7 +59,7 @@ def load(cache, table, build):
     if not os.path.exists(path):
         url = "https://wago.tools/db2/%s/csv?build=%s" % (table, build)
         print("downloading", url)
-        req = urllib.request.Request(url, headers={"User-Agent": "forever-quest-tint"})
+        req = urllib.request.Request(url, headers={"User-Agent": "forever-changes"})
         with urllib.request.urlopen(req) as r, open(path, "wb") as out:
             out.write(r.read())
     with open(path, newline="", encoding="utf-8") as f:
@@ -475,7 +475,7 @@ def lua_string(s):
 def main():
     forever_build = sys.argv[1] if len(sys.argv) > 1 else FOREVER_BUILD
     era_build = sys.argv[2] if len(sys.argv) > 2 else ERA_BUILD
-    cache = os.path.join(tempfile.gettempdir(), "forever-quest-tint-db2")
+    cache = os.path.join(tempfile.gettempdir(), "forever-changes-db2")
     os.makedirs(cache, exist_ok=True)
     forever, era = Build(cache, forever_build, True), Build(cache, era_build, False)
 

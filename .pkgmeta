@@ -1,6 +1,6 @@
-package-as: ForeverQuestTint
+package-as: ForeverChanges
 
 ignore:
   - screenshots
-  - logo
+  - tools
   - .pkgmeta

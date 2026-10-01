@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 local panel = CreateFrame("Frame")
-panel.name = "Forever Quest Tint"
+panel.name = "Forever Changes"
 
 local syncing = false
 local widgets = {}
@@ -10,11 +10,11 @@ local Sync
 
 local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 title:SetPoint("TOPLEFT", 16, -16)
-title:SetText("Forever Quest Tint")
+title:SetText("Forever Changes")
 
 local sub = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
-sub:SetText("Marks quests that were not in original Classic: a teal tint on the quest text background, and/or the WoW Forever logo.\nOpen a non-vanilla quest in the Map & Quest Log to preview changes.")
+sub:SetText("Marks quests, items and spells that are new in Forever or changed from original Classic with a teal tint.\nOpen a non-vanilla quest in the Map & Quest Log to preview changes.")
 sub:SetJustifyH("LEFT")
 
 -- Independent on/off options
@@ -33,8 +33,7 @@ local function MakeCheck(label, key, anchor, x, y)
     return cb
 end
 local showTint = MakeCheck("Tint the parchment teal", "showTint", sub, -4, -16)
-local showLogo = MakeCheck("Add the WoW Forever logo above the quest text", "showLogo", showTint, 0, -2)
-local itemTint = MakeCheck("Tint the tooltips of items new to Forever", "itemTint", showLogo, 0, -2)
+local itemTint = MakeCheck("Tint the tooltips of items new to Forever", "itemTint", showTint, 0, -2)
 
 -- Colour swatch
 local colorLabel = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -279,7 +278,6 @@ function Sync()
     syncing = true
     local c = ns.cfg
     widgets.showTint:SetChecked(c.showTint)
-    widgets.showLogo:SetChecked(c.showLogo)
     widgets.itemTint:SetChecked(c.itemTint)
     widgets.spellTint:SetChecked(c.spellTint)
     widgets.spellVanilla:SetChecked(c.spellVanilla)
