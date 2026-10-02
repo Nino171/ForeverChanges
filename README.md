@@ -4,13 +4,31 @@ A small addon for **World of Warcraft: Forever** that tints what is new or diffe
 
 Vanilla quests keep the normal parchment. Everything new to Forever gets a teal gradient rising from the bottom of the page, and a small infinity-sign marker after its name in the quest log list and the objective tracker. New items, and new or changed spells, get the same glow in their tooltips, and spells also in the spellbook and at the trainer.
 
+**Spellbook**
+
+![Spellbook](screenshots/tint_highlight_spellbook.png)
+
+**Class trainer**
+
+![Class trainer](screenshots/tint_trainer.png)
+
+**Talents**
+
+![Talents](screenshots/tint_talents.png)
+
+**WhatsTraining**
+
+![WhatsTraining](screenshots/tint_whatstraining.png)
+
+**New items tooltip**
+
+![Item tooltip](screenshots/item-tooltip.png)
+
+**Quests**
+
 | Quest giver window | Map & Quest Log |
 | --- | --- |
 | ![Quest giver window](screenshots/quest-giver.png) | ![Map and quest log](screenshots/quest-log.webp) |
-
-**New Items hover over** 
-
-![Item tooltip](screenshots/item-tooltip.png)
 
 ## Install
 

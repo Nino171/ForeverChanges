@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0.1
+- README: added spellbook, trainer, talents and WhatsTraining screenshots.
+
 ## 1.0.0
 - Forked from Forever Quest Tint 0.5.0 by Alex Diakovsky (xanastar) and renamed to **Forever Changes** (`/fchanges`). Settings do not carry over, and the old `ForeverQuestTint` folder can be deleted.
 - Items: items that are new to Forever get the teal glow at the bottom of their tooltip. It can be turned off in the options.

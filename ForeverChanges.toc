@@ -2,7 +2,7 @@
 ## Title: Forever Changes
 ## Notes: Tints quests, items and spells that are new in Forever or changed from original Classic, and marks quest names.
 ## Author: Nino171 (based on Forever Quest Tint by xanastar)
-## Version: 1.0.0
+## Version: 1.0.1
 ## SavedVariables: ForeverChangesDB
 
 VanillaQuests.lua
